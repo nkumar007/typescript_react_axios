@@ -1,35 +1,101 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState, useEffect } from "react";
+import { CanceledError } from "./services/api-client";
+import userService, { User } from "./services/user-service";
+import "./App.css";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [users, setUsers] = useState<User[]>([]);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    setIsLoading(true);
+    const { request, cancel } = userService.getUsers();
+    request
+      .then((res) => {
+        setIsLoading(false);
+        setUsers(res.data);
+      })
+      .catch((err) => {
+        if (err instanceof CanceledError) {
+          return;
+        } else {
+          setError(err.message);
+          setIsLoading(false);
+        }
+      });
+
+    return () => cancel();
+  }, []);
+
+  const deleteUser = (user: User) => {
+    const originalUsers = [...users];
+    setUsers(users.filter((u) => u.id != user.id));
+    userService.deleteUser(user).catch((err) => {
+      setError(err.message);
+      setUsers(originalUsers);
+    });
+  };
+
+  const addUser = () => {
+    const newUser = { id: 0, name: "naveen" };
+    const originalUsers = [...users];
+    setUsers([newUser, ...users]);
+    userService
+      .addUser(newUser)
+
+      .then(({ data: savedUser }) => setUsers([savedUser, ...users]))
+      .catch((err) => {
+        setError(err.message);
+        setUsers(originalUsers);
+      });
+  };
+
+  const updateUser = (user: User) => {
+    const updatedUser = { ...user, name: user.name + "!" };
+    const originalUsers = [...users];
+    setUsers(users.map((u) => (u.id === user.id ? updatedUser : u)));
+    userService.updateUser(user, updatedUser).catch((err) => {
+      setError(err.message);
+      setUsers(originalUsers);
+    });
+  };
 
   return (
-    <div className="App">
-      <div>
-        <a href="https://vitejs.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://reactjs.org" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </div>
-  )
+    <>
+      {error && <p className="text-danger">{error}</p>}
+      {isLoading && <div className="spinner-border"></div>}
+      <button className="btn btn-primary mb-3" onClick={addUser}>
+        Add
+      </button>
+      <ul className="list-group">
+        {users.map((user) => (
+          <>
+            <li
+              className="list-group-item d-flex justify-content-between"
+              key={user.id}
+            >
+              {user.name}
+              <div>
+                <button
+                  className="btn btn-outline-secondary mx-1"
+                  onClick={() => updateUser(user)}
+                >
+                  Update
+                </button>
+                <button
+                  className="btn btn-outline-danger"
+                  onClick={() => deleteUser(user)}
+                >
+                  Delete
+                </button>
+              </div>
+            </li>
+          </>
+        ))}
+      </ul>
+    </>
+  );
 }
 
-export default App
+export default App;
